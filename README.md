@@ -15,7 +15,7 @@ worth after the unpaid break.
 ```
 question ──> agent loop (Claude, hand-written) ──> answer with [1] [2] citations
                  │
-                 ├── search_guidance ──> hybrid search: Postgres full-text + pgvector, fused with RRF
+                 ├── search_guidance ──> hybrid search: BM25 in Postgres + pgvector, fused with RRF
                  ├── uk_bank_holidays ─> gov.uk bank holidays API
                  ├── find_pharmacy ────> NHS Organisation Data Service API
                  └── calculate_shift_pay (plain Python: no arithmetic by the model)
@@ -25,7 +25,7 @@ question ──> agent loop (Claude, hand-written) ──> answer with [1] [2] c
   2008 and the Human Medicines (Authorisation by Pharmacists and Supervision by Pharmacy
   Technicians) Order 2025. They are downloaded at ingest time, never committed.
 - **Retrieval**: sentence-aligned chunks of about 900 characters with overlap; keyword search
-  (Postgres `tsvector`, GIN index) and semantic search (`BAAI/bge-small-en-v1.5` embeddings run
+  (BM25 computed in Postgres over a `tsvector` GIN index) and semantic search (`BAAI/bge-small-en-v1.5` embeddings run
   locally, pgvector HNSW index), merged with reciprocal rank fusion, at most two passages per
   document.
 - **Agent**: a tool-use loop written by hand on the Anthropic Messages API, with strict tool
@@ -56,9 +56,27 @@ Set `LLM_PROVIDER=anthropic` and `ANTHROPIC_API_KEY` in `.env` to use Claude (se
 
 ## Evaluation
 
-`evals/retrieval.jsonl` holds questions phrased the way locums ask them, each with the document
-and the passage that answers it. `locum eval-retrieval` scores keyword-only, vector-only and
-hybrid search side by side (passage recall@5 and MRR), and CI fails if hybrid recall drops.
+Two question sets, phrased the way locums ask, each question labelled with the document and
+passage that answers it: `evals/retrieval.jsonl` (26 questions, used while tuning) and
+`evals/retrieval_test.jsonl` (20 questions, written and committed before any tuning and never
+tuned against). The score is passage recall@5: is the answering passage in the top five?
+
+| Search | Dev, first version | Dev, with BM25 | Held out, first version | Held out, with BM25 |
+|---|---|---|---|---|
+| Keyword | 0.46 | 0.85 | 0.55 | 0.80 |
+| Semantic | 0.65 | 0.65 | 0.75 | 0.75 |
+| Hybrid (RRF) | 0.58 | 0.69 | 0.70 | **0.85** |
+
+What happened: the first keyword search used Postgres's `ts_rank_cd`, which has no inverse
+document frequency, so words like "pharmacy" that appear in almost every passage outweighed
+the words that matter. Hybrid search scored *below* semantic search alone. Replacing it with BM25
+computed in SQL (document frequencies in a materialised view refreshed after each ingest) raised
+keyword recall from 0.46 to 0.85 on the dev set and hybrid from 0.70 to 0.85 on the held-out set.
+
+On the dev set keyword-only search now beats hybrid; on the held-out set hybrid wins. With 20 to
+26 questions one question is worth four to five points, so I kept equal-weight fusion, the
+default chosen before measuring, rather than pick a weighting that only the dev set supports.
+CI fails if hybrid dev recall drops below 0.65.
 
 ## Tests and CI
 

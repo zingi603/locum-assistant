@@ -34,6 +34,7 @@ def cmd_ingest(args: argparse.Namespace) -> int:
         except Exception as exc:  # one broken source shouldn't stop the rest
             failed.append(source.id)
             print(f"  ERR {source.id:32s} {exc}", file=sys.stderr)
+    store.refresh_stats()
     return 1 if failed else 0
 
 
@@ -45,9 +46,9 @@ def cmd_search(args: argparse.Namespace) -> int:
 
 
 def cmd_eval_retrieval(args: argparse.Namespace) -> int:
-    from locum_assistant.evals.retrieval import main as run
-
     from pathlib import Path
+
+    from locum_assistant.evals.retrieval import main as run
 
     _, _, retriever = _retriever()
     return run(retriever, args.k, args.min_recall, Path(args.dataset))

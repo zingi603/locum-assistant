@@ -51,24 +51,51 @@ CREATE TABLE IF NOT EXISTS chunks (
 );
 CREATE INDEX IF NOT EXISTS chunks_tsv_idx ON chunks USING gin (tsv);
 CREATE INDEX IF NOT EXISTS chunks_embedding_idx ON chunks USING hnsw (embedding vector_cosine_ops);
+-- BM25 needs each chunk's length in words and each word's document frequency
+ALTER TABLE chunks ADD COLUMN IF NOT EXISTS len int NOT NULL DEFAULT 0;
+-- schema-qualified: Postgres 17 refreshes materialized views with a locked-down search_path
+CREATE MATERIALIZED VIEW IF NOT EXISTS lexeme_df AS
+    SELECT word AS lexeme, ndoc AS df FROM ts_stat('SELECT tsv FROM public.chunks');
+CREATE UNIQUE INDEX IF NOT EXISTS lexeme_df_idx ON lexeme_df (lexeme);
 """
 
 HIT_COLUMNS = "c.id, c.doc_id, d.title, d.url, c.heading, c.page, c.text"
 
-# A question such as "can a locum leave the pharmacy for lunch?" would match nothing as an AND
-# query, so the question's stemmed words are OR-ed together and ts_rank_cd rewards chunks that
-# contain more of them, closer together.
+# Keyword search scored with BM25, computed in SQL.
+#
+# Postgres's own ts_rank has no IDF: "pharmacy" (in nearly every chunk) counts as much as
+# "absent" (in a handful), so common words swamped the ranking (passage recall@5 0.46 on the dev
+# set). BM25 weights each query word by how rare it is (IDF), saturates repeated words (k1) and
+# normalises for chunk length (b):
+#     score = sum over query words of  idf * tf * (k1 + 1) / (tf + k1 * (1 - b + b * len / avglen))
+#     idf   = ln(1 + (N - df + 0.5) / (df + 0.5))
+# The question's words are OR-ed, so the GIN index still finds every chunk with any of them.
+BM25_K1, BM25_B = 1.2, 0.75
 KEYWORD_SQL = f"""
 WITH q AS (
-    SELECT array_to_string(
-        ARRAY(SELECT quote_literal(l) FROM unnest(tsvector_to_array(to_tsvector('english', %s))) l),
-        ' | ')::tsquery AS query
+    SELECT DISTINCT l AS lexeme FROM unnest(tsvector_to_array(to_tsvector('english', %(q)s))) l
+),
+query AS (
+    SELECT array_to_string(ARRAY(SELECT quote_literal(lexeme) FROM q), ' | ')::tsquery AS tsq
+),
+corpus AS (SELECT count(*)::float AS n, avg(len)::float AS avglen FROM chunks),
+terms AS (
+    SELECT q.lexeme, ln(1 + (corpus.n - d.df + 0.5) / (d.df + 0.5)) AS idf
+    FROM q JOIN lexeme_df d ON d.lexeme = q.lexeme, corpus
+),
+scored AS (
+    SELECT c.id, sum(t.idf * u.tf * ({BM25_K1} + 1)
+               / (u.tf + {BM25_K1} * (1 - {BM25_B} + {BM25_B} * c.len / corpus.avglen))) AS score
+    FROM chunks c, query, corpus,
+         LATERAL (SELECT lexeme, array_length(positions, 1) AS tf FROM unnest(c.tsv)) u
+         JOIN terms t ON t.lexeme = u.lexeme
+    WHERE c.tsv @@ query.tsq
+    GROUP BY c.id
 )
-SELECT {HIT_COLUMNS}, ts_rank_cd(c.tsv, q.query) AS score
-FROM chunks c JOIN documents d ON d.id = c.doc_id, q
-WHERE c.tsv @@ q.query
-ORDER BY score DESC
-LIMIT %s
+SELECT {HIT_COLUMNS}, s.score
+FROM scored s JOIN chunks c ON c.id = s.id JOIN documents d ON d.id = c.doc_id
+ORDER BY s.score DESC
+LIMIT %(limit)s
 """
 
 VECTOR_SQL = f"""
@@ -115,10 +142,19 @@ class Store:
                     [(source.id, c.ord, c.heading, c.page, c.text, np.array(e, dtype=np.float32))
                      for c, e in zip(chunks, embeddings, strict=True)],
                 )
+            conn.execute(
+                """UPDATE chunks SET len = (SELECT coalesce(sum(array_length(positions, 1)), 0)
+                                           FROM unnest(tsv)) WHERE doc_id = %s""",
+                (source.id,))
+
+    def refresh_stats(self) -> None:
+        """Recompute word document frequencies for BM25. Run after ingesting."""
+        with psycopg.connect(self.database_url, autocommit=True) as conn:
+            conn.execute("REFRESH MATERIALIZED VIEW lexeme_df")
 
     def keyword_search(self, query: str, limit: int) -> list[Hit]:
         with self.connect() as conn:
-            rows = conn.execute(KEYWORD_SQL, (query, limit)).fetchall()
+            rows = conn.execute(KEYWORD_SQL, {"q": query, "limit": limit}).fetchall()
         return [Hit(*row) for row in rows]
 
     def vector_search(self, embedding: list[float], limit: int) -> list[Hit]:
