@@ -1,0 +1,50 @@
+[project]
+name = "locum-assistant"
+version = "0.1.0"
+description = "AI assistant for UK locum pharmacists: answers from GPhC guidance and UK law with citations, plus tools."
+requires-python = ">=3.12"
+dependencies = [
+    "anthropic>=2.10.0",
+    "beautifulsoup4>=4.15.0",
+    "fastapi>=0.163.2",
+    "fastembed>=0.9.1",
+    "httpx>=0.28.1",
+    "pgvector>=0.5.1",
+    "psycopg[binary]>=3.3.9",
+    "pydantic-settings>=2.16.3",
+    "pypdf>=7.1.1",
+    "uvicorn[standard]>=0.54.0",
+]
+
+[project.scripts]
+locum = "locum_assistant.cli:main"
+
+[build-system]
+requires = ["uv_build>=0.12.10,<0.13.0"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "mypy>=2.4.1",
+    "pytest>=9.2.0",
+    "ruff>=0.17.5",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = ["db: needs a running Postgres with pgvector (DATABASE_URL)"]
+
+[tool.mypy]
+python_version = "3.12"
+ignore_missing_imports = true
+check_untyped_defs = true
+
+[tool.ruff.lint.per-file-ignores]
+"src/locum_assistant/ingest/sources.py" = ["E501"]  # long source URLs read better unbroken

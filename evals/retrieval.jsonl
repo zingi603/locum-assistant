@@ -1,0 +1,26 @@
+{"q": "How long can the responsible pharmacist be away from the pharmacy during opening hours?", "docs": ["rp-regulations"], "phrase": "two hours"}
+{"q": "Can I nip out for lunch while I'm the RP on a locum shift?", "docs": ["rp-regulations"], "phrase": "absent from the premises"}
+{"q": "What has to be written in the responsible pharmacist record?", "docs": ["rp-regulations"], "phrase": "particulars which must be included in the pharmacy record"}
+{"q": "Can the pharmacy record be kept electronically instead of on paper?", "docs": ["rp-regulations"], "phrase": "in electronic form"}
+{"q": "Can a pharmacy technician now supervise dispensing instead of a pharmacist?", "docs": ["supervision-order-2025"], "phrase": "authorise a registered pharmacy technician to supervise"}
+{"q": "When did the 2025 supervision changes come into force?", "docs": ["supervision-order-2025"], "phrase": "come into force"}
+{"q": "I'm a locum. Am I still expected to raise concerns about patient safety at a pharmacy I don't usually work in?", "docs": ["gphc-raising-concerns"], "phrase": "locum"}
+{"q": "Who should a pharmacy professional contact for confidential advice about whistleblowing?", "docs": ["gphc-raising-concerns"], "phrase": "Whistleblowing Helpline"}
+{"q": "What does standard 8 say about speaking up when things go wrong?", "docs": ["gphc-raising-concerns", "gphc-standards-professionals"], "phrase": "speak up when they have concerns"}
+{"q": "My religious beliefs mean I don't want to provide a service. Can I refer the patient to another pharmacist?", "docs": ["gphc-religion-beliefs"], "phrase": "referral to another health professional"}
+{"q": "When is referring someone elsewhere not appropriate because of my beliefs?", "docs": ["gphc-religion-beliefs"], "phrase": "A referral may not be appropriate"}
+{"q": "What makes a patient's consent valid?", "docs": ["gphc-consent"], "phrase": "For consent to be valid"}
+{"q": "Can a young person under 16 give consent in the pharmacy?", "docs": ["gphc-consent"], "phrase": "capacity to consent depends more on the person"}
+{"q": "A competent adult refuses the treatment I recommend. What should I do?", "docs": ["gphc-consent"], "phrase": "must respect their decision"}
+{"q": "When can I share a patient's information without their consent?", "docs": ["gphc-confidentiality"], "phrase": "public interest"}
+{"q": "Can I mention a patient I served today in a post on social media?", "docs": ["gphc-professionalism-online", "gphc-confidentiality"], "phrase": "social media"}
+{"q": "If I use an AI tool to help with my work, who is accountable for the decision?", "docs": ["gphc-ai-position"], "phrase": "personally accountable"}
+{"q": "Can AI replace a pharmacist's clinical judgement?", "docs": ["gphc-ai-position"], "phrase": "should not replace clinical decision making"}
+{"q": "What are the nine standards for pharmacy professionals?", "docs": ["gphc-standards-professionals"], "phrase": "nine standards"}
+{"q": "Is it the pharmacy owner's job to make sure there are enough suitably qualified staff?", "docs": ["gphc-standards-pharmacies", "gphc-safe-effective-team"], "phrase": "enough staff"}
+{"q": "What should a pharmacy do after a dispensing error so it doesn't happen again?", "docs": ["gphc-learning-from-incidents", "gphc-safe-effective-team"], "phrase": "dispensing (incidents|errors)"}
+{"q": "Can a pharmacist prescriber write a prescription for a family member?", "docs": ["gphc-prescribers"], "phrase": "must not prescribe for themselves"}
+{"q": "How should an online pharmacy check who it is supplying medicines to?", "docs": ["gphc-distance-services", "gphc-prescribers"], "phrase": "identity"}
+{"q": "What should a newly qualified prescribing pharmacist agree with their employer when they start?", "docs": ["gphc-newly-qualified"], "phrase": "scope of your prescribing"}
+{"q": "What does the GPhC mean by a pharmacist's scope of practice?", "docs": ["gphc-scope-of-practice"], "phrase": "scope of practice is individual"}
+{"q": "What should I do when my legal and professional responsibilities seem to conflict?", "docs": ["gphc-standards-professionals"], "phrase": "conflicting legal and professional responsibilities"}
