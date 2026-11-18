@@ -22,10 +22,17 @@ class Settings(BaseSettings):
     candidates: int = 20  # how many hits each retriever returns before fusion
     max_chunks_per_doc: int = 2  # stops one long document filling every slot
 
-    # LLM: "fake" runs the agent with a scripted model, for tests and for working without a key.
-    llm_provider: str = "fake"
+    # LLM: "anthropic" calls Claude; "extractive" needs no key and quotes the top passages.
+    llm_provider: str = "extractive"
     anthropic_api_key: str | None = None
-    anthropic_model: str = "claude-sonnet-5-5"
+    anthropic_model: str = "claude-opus-5-5"
+    anthropic_effort: str = "medium"  # Opus 5.5 always thinks; effort sets how hard
+    max_agent_steps: int = 6
+
+    # API
+    api_keys: str = ""  # comma-separated; empty means no auth (local development only)
+    rate_limit_per_minute: int = 20
+    log_json: bool = True
 
 
 @lru_cache

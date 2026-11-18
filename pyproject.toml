@@ -10,6 +10,7 @@ dependencies = [
     "fastembed>=0.9.1",
     "httpx>=0.28.1",
     "pgvector>=0.5.1",
+    "prometheus-client>=0.26.0",
     "psycopg[binary]>=3.3.9",
     "pydantic-settings>=2.16.3",
     "pypdf>=7.1.1",
@@ -18,6 +19,7 @@ dependencies = [
 
 [project.scripts]
 locum = "locum_assistant.cli:main"
+locum-api = "locum_assistant.api:serve"
 
 [build-system]
 requires = ["uv_build>=0.12.10,<0.13.0"]

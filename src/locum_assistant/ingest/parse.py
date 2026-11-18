@@ -4,6 +4,7 @@ needs: the heading it sits under, or the PDF page it came from."""
 import re
 from dataclasses import dataclass, field
 from io import BytesIO
+from typing import cast
 
 from bs4 import BeautifulSoup, Tag
 from pypdf import PdfReader
@@ -51,7 +52,7 @@ def _walk_html(root: Tag, source: Source) -> Document:
     """Collect text under each h2-h4 heading. Paragraphs and list items before the first
     heading go under the page title."""
     doc = Document(source)
-    heading, buffer = source.title, []
+    heading, buffer = source.title, cast(list[str], [])
 
     def flush() -> None:
         text = clean_text(" ".join(buffer))
