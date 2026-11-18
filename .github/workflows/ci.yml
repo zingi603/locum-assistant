@@ -1,0 +1,62 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  checks:
+    name: Lint, types, unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - run: uv sync --frozen
+      - run: uv run ruff check .
+      - run: uv run mypy src
+      - run: uv run pytest -q
+
+  retrieval-eval:
+    name: Retrieval eval (real Postgres + pgvector)
+    runs-on: ubuntu-latest
+    needs: checks
+    services:
+      db:
+        image: pgvector/pgvector:pg17
+        env:
+          POSTGRES_USER: locum
+          POSTGRES_PASSWORD: locum
+          POSTGRES_DB: locum
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U locum" --health-interval 2s --health-retries 30
+    env:
+      DATABASE_URL: postgresql://locum:locum@localhost:5432/locum
+      FASTEMBED_CACHE_PATH: ${{ github.workspace }}/.fastembed
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - run: uv sync --frozen
+      # cache the downloaded documents and the embedding model between runs, so CI doesn't
+      # fetch from the GPhC and Hugging Face on every push
+      - uses: actions/cache@v4
+        with:
+          path: |
+            data/raw
+            .fastembed
+          key: corpus-${{ hashFiles('src/locum_assistant/ingest/sources.py') }}
+      - run: uv run locum ingest
+      - run: uv run locum eval-retrieval --min-recall 0.8
+      - uses: actions/upload-artifact@v4
+        with:
+          name: retrieval-eval
+          path: evals/results/
+
+  docker:
+    name: Docker image builds
+    runs-on: ubuntu-latest
+    needs: checks
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build -t locum-assistant .
