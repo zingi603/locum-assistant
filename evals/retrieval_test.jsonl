@@ -1,0 +1,20 @@
+{"q": "How long does the pharmacy have to keep the RP record?", "docs": ["rp-regulations"], "phrase": "not less than five years"}
+{"q": "Can a pharmacist prescriber prescribe high-risk medicines from an online questionnaire alone?", "docs": ["gphc-prescribers"], "phrase": "online questionnaires alone"}
+{"q": "What should an online prescriber do if they can't check the information a patient gives them?", "docs": ["gphc-prescribers"], "phrase": "cannot independently verify"}
+{"q": "Is handing over a prescription to be dispensed a form of consent?", "docs": ["gphc-consent"], "phrase": "implied consent"}
+{"q": "If someone lacked capacity last week, can I assume they still can't decide today?", "docs": ["gphc-consent"], "phrase": "must not assume that because a person lacks capacity"}
+{"q": "Does a registered pharmacy need indemnity or insurance for its services?", "docs": ["gphc-standards-pharmacies", "gphc-scope-of-practice"], "phrase": "indemnity"}
+{"q": "Who can I ask for advice when I'm unsure what to do about a confidentiality problem?", "docs": ["gphc-confidentiality"], "phrase": "professional indemnity insurance provider"}
+{"q": "Should newly qualified prescribers include prescribing in revalidation?", "docs": ["gphc-newly-qualified"], "phrase": "revalidation"}
+{"q": "What counts as a conflict of interest for a pharmacist prescriber?", "docs": ["gphc-prescribers"], "phrase": "conflict of interest"}
+{"q": "My employer's sales targets are putting patients at risk. What do the standards say?", "docs": ["gphc-standards-pharmacies", "gphc-standards-professionals"], "phrase": "targets"}
+{"q": "Who do I report a serious risk of harm to at a big pharmacy chain?", "docs": ["gphc-raising-concerns"], "phrase": "superintendent pharmacist"}
+{"q": "Is anonymised patient information still confidential?", "docs": ["gphc-confidentiality"], "phrase": "anonymisation"}
+{"q": "Should I check what an AI tool tells me before I rely on it?", "docs": ["gphc-ai-position"], "phrase": "review outputs from AI tools"}
+{"q": "If my social media account is private, can I post what I like about work?", "docs": ["gphc-professionalism-online"], "phrase": "privacy settings do not mean"}
+{"q": "Should the pharmacy team record near misses as well as errors?", "docs": ["gphc-safe-effective-team", "gphc-newly-qualified", "gphc-learning-from-incidents"], "phrase": "near miss"}
+{"q": "Can an online pharmacy use photo ID checks to confirm who a customer is?", "docs": ["gphc-distance-services"], "phrase": "photo ID"}
+{"q": "Does a patient's advance decision to refuse treatment bind me?", "docs": ["gphc-consent"], "phrase": "advance"}
+{"q": "What if a patient is unconscious and needs urgent treatment, so I can't get consent?", "docs": ["gphc-consent"], "phrase": "In an emergency"}
+{"q": "Can I put pressure on a patient to follow my advice?", "docs": ["gphc-consent"], "phrase": "pressure"}
+{"q": "Should a second person do the final accuracy check when a pharmacist prescriber also dispenses?", "docs": ["gphc-prescribers"], "phrase": "final accuracy check"}

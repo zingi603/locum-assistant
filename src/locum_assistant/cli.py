@@ -47,8 +47,10 @@ def cmd_search(args: argparse.Namespace) -> int:
 def cmd_eval_retrieval(args: argparse.Namespace) -> int:
     from locum_assistant.evals.retrieval import main as run
 
+    from pathlib import Path
+
     _, _, retriever = _retriever()
-    return run(retriever, args.k, args.min_recall)
+    return run(retriever, args.k, args.min_recall, Path(args.dataset))
 
 
 def main() -> None:
@@ -69,6 +71,8 @@ def main() -> None:
 
     ev = sub.add_parser("eval-retrieval", help="score retrieval against evals/retrieval.jsonl")
     ev.add_argument("-k", type=int, default=5)
+    ev.add_argument("--dataset", default="evals/retrieval.jsonl",
+                    help="evals/retrieval.jsonl (dev) or evals/retrieval_test.jsonl (held out)")
     ev.add_argument("--min-recall", type=float, default=0.0,
                     help="exit non-zero if hybrid recall@k is below this (used in CI)")
     ev.set_defaults(fn=cmd_eval_retrieval)

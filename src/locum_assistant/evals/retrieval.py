@@ -5,7 +5,11 @@ passage. Two scores per search mode:
 - doc recall@k: an expected document is in the top k
 - passage recall@k: a top-k chunk from an expected document contains the phrase
 plus MRR (mean reciprocal rank of the first correct passage), which rewards ranking it first.
-Running all three modes side by side shows what hybrid search actually buys."""
+Running all three modes side by side shows what hybrid search actually buys.
+
+Two datasets: retrieval.jsonl is the dev set, used while tuning search. retrieval_test.jsonl
+is held out: written and committed before any tuning, and never tuned against, so its score
+is the honest one."""
 
 import json
 import re
@@ -43,8 +47,10 @@ def score(retriever: Retriever, cases: list[dict], k: int, mode: Mode) -> dict:
             "misses": misses}
 
 
-def main(retriever: Retriever, k: int = 5, min_recall: float = 0.0) -> int:
-    cases = load_cases()
+def main(retriever: Retriever, k: int = 5, min_recall: float = 0.0,
+         dataset: Path = DATASET) -> int:
+    cases = load_cases(dataset)
+    print(f"{dataset} ({len(cases)} questions)")
     report = [score(retriever, cases, k, mode) for mode in ("keyword", "vector", "hybrid")]
     print(f"{'mode':8s} {'doc@' + str(k):>7s} {'passage@' + str(k):>10s} {'MRR':>6s}")
     for r in report:
@@ -53,7 +59,7 @@ def main(retriever: Retriever, k: int = 5, min_recall: float = 0.0) -> int:
     for miss in hybrid["misses"]:
         print(f"  MISS (hybrid): {miss['q']}\n        got: {miss['got']}")
     RESULTS.mkdir(parents=True, exist_ok=True)
-    out = RESULTS / f"retrieval-{datetime.now(UTC):%Y%m%dT%H%M%SZ}.json"
+    out = RESULTS / f"{dataset.stem}-{datetime.now(UTC):%Y%m%dT%H%M%SZ}.json"
     out.write_text(json.dumps(report, indent=2), encoding="utf-8")
     if hybrid["passage_recall"] < min_recall:
         print(f"FAIL: hybrid passage recall {hybrid['passage_recall']} < {min_recall}",
