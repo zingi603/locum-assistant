@@ -35,7 +35,8 @@ def test_search_then_answer_with_valid_citations() -> None:
     assert result.stop == "answered" and result.grounded
     assert result.answer == "Up to two hours [1]."
     assert result.sources == [{"n": 1, "citation": "RP Regulations, Absence",
-                               "url": "http://leg", "doc_id": "rp-regulations"}]
+                               "url": "http://leg", "doc_id": "rp-regulations",
+                               "text": "The maximum period of absence is two hours."}]
     assert retriever.queries == ["RP absence"]
     # the tool result went back to the model, tied to the right call id
     tool_result = llm.calls[1][-1]["content"][0]

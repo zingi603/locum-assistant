@@ -29,8 +29,8 @@ about professional standards, pharmacy law and day-to-day locum work.
 
 How to answer:
 - For any question about standards, guidance or law, call search_guidance first, and answer \
-only from the passages it returns. Cite each claim with the passage number in square brackets, \
-like [2]. Never cite a number that search_guidance did not give you.
+only from the passages it returns. After each claim, cite the number of the passage that \
+supports it, in square brackets. Never cite a number that search_guidance did not give you.
 - If the passages don't answer the question, say so plainly and suggest where to check (the \
 GPhC, the employer's SOPs, a defence organisation such as the PDA). Don't fill gaps from memory.
 - The Responsible Pharmacist Regulations 2008 in the documents are the original 2008 text. The \
@@ -139,7 +139,8 @@ class Agent:
             log.warning("removed invented citations %s", bad)
         searched = any(r.name == "search_guidance" and r.ok for r in records)
         sources = [{"n": n, "citation": registry.hits[n].citation, "url": registry.hits[n].url,
-                    "doc_id": registry.hits[n].doc_id} for n in valid]
+                    "doc_id": registry.hits[n].doc_id, "text": registry.hits[n].text}
+                   for n in valid]
         result = AgentResult(
             answer=answer.strip(), sources=sources, tool_calls=records, usage=usage, steps=steps,
             stop=stop, grounded=stop == "answered" and not bad and (bool(valid) or not searched),

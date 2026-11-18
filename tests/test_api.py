@@ -11,7 +11,9 @@ from tests.test_agent import FakeRetriever
 def app_with(turns: list, **settings: object) -> TestClient:
     llm = ScriptedLLM(turns)
     agent = Agent(llm, lambda reg: [search_guidance_tool(FakeRetriever(), reg)])  # type: ignore[arg-type]
-    return TestClient(create_app(Settings(**settings), agent=agent))  # type: ignore[arg-type]
+    # _env_file=None: tests must not pick up a developer's local .env
+    config = Settings(_env_file=None, llm_provider="extractive", **settings)  # type: ignore[call-arg, arg-type]
+    return TestClient(create_app(config, agent=agent))
 
 
 def test_ask_returns_answer_sources_and_trace() -> None:

@@ -45,6 +45,38 @@ def cmd_search(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_ask(args: argparse.Namespace) -> int:
+    from locum_assistant.api import build_agent, estimate_cost
+
+    agent, _ = build_agent(get_settings())
+    result = agent.run(args.question)
+    print(result.answer, "\n")
+    for src in result.sources:
+        print(f"  [{src['n']}] {src['citation']}")
+    tools = ", ".join(f"{t.name}({'ok' if t.ok else 'error'})" for t in result.tool_calls)
+    u = result.usage
+    print(f"\nstop={result.stop} grounded={result.grounded} steps={result.steps} tools: {tools}")
+    print(f"model={result.model} tokens in={u.input_tokens} out={u.output_tokens} "
+          f"cache_read={u.cache_read_tokens} cost=${estimate_cost(result.model, result):.4f}")
+    return 0
+
+
+JUDGE_PRICES = {"openai/gpt-5.6-sol": (4.0, 20.0), "anthropic/claude-sonnet-5.5": (2.0, 10.0)}
+
+
+def cmd_eval_answers(args: argparse.Namespace) -> int:
+    from locum_assistant.api import build_agent, estimate_cost
+    from locum_assistant.evals.answers import Judge
+    from locum_assistant.evals.answers import main as run
+
+    s = get_settings()
+    agent, _ = build_agent(s)
+    judge = None if args.no_judge else Judge(
+        s.openrouter_api_key, args.judge_model, s.openrouter_base_url,
+        JUDGE_PRICES.get(args.judge_model, (0.0, 0.0)))
+    return run(agent, judge, lambda r: estimate_cost(r.model, r), args.workers, args.only)
+
+
 def cmd_eval_retrieval(args: argparse.Namespace) -> int:
     from pathlib import Path
 
@@ -69,6 +101,17 @@ def main() -> None:
     se.add_argument("-k", type=int, default=5)
     se.add_argument("--mode", choices=["hybrid", "keyword", "vector"], default="hybrid")
     se.set_defaults(fn=cmd_search)
+
+    ak = sub.add_parser("ask", help="ask the agent one question")
+    ak.add_argument("question")
+    ak.set_defaults(fn=cmd_ask)
+
+    ea = sub.add_parser("eval-answers", help="run evals/answers.jsonl through the agent and judge")
+    ea.add_argument("--judge-model", default="openai/gpt-5.6-sol")
+    ea.add_argument("--no-judge", action="store_true", help="deterministic checks only (cheaper)")
+    ea.add_argument("--workers", type=int, default=4)
+    ea.add_argument("--only", nargs="*", help="case ids to run, e.g. g01 r03")
+    ea.set_defaults(fn=cmd_eval_answers)
 
     ev = sub.add_parser("eval-retrieval", help="score retrieval against evals/retrieval.jsonl")
     ev.add_argument("-k", type=int, default=5)
