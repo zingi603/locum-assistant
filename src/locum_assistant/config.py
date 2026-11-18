@@ -22,8 +22,12 @@ class Settings(BaseSettings):
     candidates: int = 20  # how many hits each retriever returns before fusion
     max_chunks_per_doc: int = 2  # stops one long document filling every slot
 
-    # LLM: "anthropic" calls Claude; "extractive" needs no key and quotes the top passages.
+    # LLM: "anthropic" calls Claude directly; "openrouter" calls any model through OpenRouter's
+    # OpenAI-compatible API; "extractive" needs no key and quotes the top passages.
     llm_provider: str = "extractive"
+    openrouter_api_key: str | None = None
+    openrouter_model: str = "anthropic/claude-opus-5.5"
+    openrouter_base_url: str = "https://openrouter.ai/api/v1"
     anthropic_api_key: str | None = None
     anthropic_model: str = "claude-opus-5-5"
     anthropic_effort: str = "medium"  # Opus 5.5 always thinks; effort sets how hard

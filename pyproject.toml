@@ -9,6 +9,7 @@ dependencies = [
     "fastapi>=0.163.2",
     "fastembed>=0.9.1",
     "httpx>=0.28.1",
+    "openai>=3.55.0",
     "pgvector>=0.5.1",
     "prometheus-client>=0.26.0",
     "psycopg[binary]>=3.3.9",

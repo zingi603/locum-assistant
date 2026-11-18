@@ -28,9 +28,11 @@ question ──> agent loop (Claude, hand-written) ──> answer with [1] [2] c
   (BM25 computed in Postgres over a `tsvector` GIN index) and semantic search (`BAAI/bge-small-en-v1.5` embeddings run
   locally, pgvector HNSW index), merged with reciprocal rank fusion, at most two passages per
   document.
-- **Agent**: a tool-use loop written by hand on the Anthropic Messages API, with strict tool
-  schemas, a step limit, prompt caching on the tools and system prompt, and server-side refusal
-  fallback.
+- **Agent**: a tool-use loop written by hand, with strict tool schemas, a step limit and prompt
+  caching on the tools and system prompt. The model sits behind a small interface with two
+  providers: the Anthropic Messages API (with server-side refusal fallback) and any
+  OpenAI-compatible API such as OpenRouter, through an adapter that translates tool calls and
+  results between the two formats.
 - **Guardrails**: input length limits; scope and refusal rules in the prompt (no clinical advice
   about a specific patient, Northern Ireland has a different regulator); every `[n]` citation is
   checked against the passages actually retrieved, and invented ones are removed and flagged.
@@ -51,8 +53,8 @@ uv run locum eval-retrieval      # keyword vs vector vs hybrid
 uv run locum-api                 # http://localhost:8080/docs
 ```
 
-Set `LLM_PROVIDER=anthropic` and `ANTHROPIC_API_KEY` in `.env` to use Claude (see
-`.env.example`).
+To use a model, set `LLM_PROVIDER=anthropic` with `ANTHROPIC_API_KEY`, or
+`LLM_PROVIDER=openrouter` with `OPENROUTER_API_KEY`, in `.env` (see `.env.example`).
 
 ## Evaluation
 

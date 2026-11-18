@@ -36,7 +36,8 @@ COST = Counter("llm_cost_usd_total", "Estimated model cost in US dollars")
 TOOL_CALLS = Counter("tool_calls_total", "Tool calls", ["tool", "ok"])
 
 # US dollars per million tokens for claude-opus-5-5: input, output, cache read, cache write.
-PRICES = {"claude-opus-5-5": (4.00, 20.00, 0.20, 5.00)}
+PRICES = {"claude-opus-5-5": (4.00, 20.00, 0.20, 5.00),
+          "anthropic/claude-opus-5.5": (4.00, 20.00, 0.20, 5.00)}
 
 
 def estimate_cost(model: str, r: AgentResult) -> float:
@@ -75,7 +76,7 @@ class RateLimiter:
 
 def build_agent(settings: Settings) -> tuple[Agent, Callable[[], bool]]:
     """Wire the real agent: Postgres store, local embeddings, the chosen model."""
-    from locum_assistant.agent.llm import LLM, AnthropicLLM, ExtractiveLLM
+    from locum_assistant.agent.llm import LLM, AnthropicLLM, ExtractiveLLM, OpenAICompatLLM
     from locum_assistant.agent.tools import default_tools
     from locum_assistant.retrieval.embed import FastEmbedder
     from locum_assistant.retrieval.search import Retriever
@@ -88,6 +89,9 @@ def build_agent(settings: Settings) -> tuple[Agent, Callable[[], bool]]:
     if settings.llm_provider == "anthropic":
         llm = AnthropicLLM(settings.anthropic_api_key, settings.anthropic_model,
                            settings.anthropic_effort)
+    elif settings.llm_provider == "openrouter":
+        llm = OpenAICompatLLM(settings.openrouter_api_key, settings.openrouter_model,
+                              settings.openrouter_base_url, settings.anthropic_effort)
     else:
         llm = ExtractiveLLM()
 

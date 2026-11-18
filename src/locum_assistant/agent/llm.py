@@ -3,6 +3,7 @@
 AnthropicLLM calls Claude. ScriptedLLM replays canned turns, so the agent loop can be tested
 without a network or an API key. The loop only ever sees an LLMTurn."""
 
+import json
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any, Protocol, cast
@@ -132,3 +133,99 @@ class ExtractiveLLM:
             n = head[: head.index("]") + 1]
             lines.append(f"- {body[:400].rstrip()}... {n}")
         return text_turn("\n".join(lines))
+
+
+# --- OpenAI-compatible APIs (OpenRouter, OpenAI, local Ollama) --------------------------------
+#
+# The agent loop keeps its conversation in Anthropic's shape (content blocks: text, tool_use,
+# tool_result). This adapter translates that history to the OpenAI chat format on every call and
+# translates the reply back, so the loop never knows which provider it is talking to.
+
+FINISH_REASONS = {"stop": "end_turn", "tool_calls": "tool_use", "length": "max_tokens",
+                  "content_filter": "refusal"}
+
+
+def _block(b: Any, key: str) -> Any:
+    return b.get(key) if isinstance(b, dict) else getattr(b, key, None)
+
+
+def to_openai_tools(specs: list[dict]) -> list[dict]:
+    return [{"type": "function", "function": {
+        "name": s["name"], "description": s["description"], "parameters": s["input_schema"],
+        "strict": s.get("strict", False)}} for s in specs]
+
+
+def to_openai_messages(system: str, messages: list[dict], cache: bool = False) -> list[dict]:
+    """Anthropic-shaped history -> OpenAI chat messages. With cache=True the system prompt
+    carries an Anthropic cache breakpoint, which OpenRouter passes through to Claude."""
+    sys_content: Any = system
+    if cache:
+        sys_content = [{"type": "text", "text": system, "cache_control": {"type": "ephemeral"}}]
+    out: list[dict] = [{"role": "system", "content": sys_content}]
+    for m in messages:
+        content = m["content"]
+        if isinstance(content, str):
+            out.append({"role": m["role"], "content": content})
+        elif m["role"] == "user":  # tool results: one "tool" message per result
+            for b in content:
+                if _block(b, "type") == "tool_result":
+                    out.append({"role": "tool", "tool_call_id": _block(b, "tool_use_id"),
+                                "content": _block(b, "content")})
+        else:  # assistant: text plus tool calls
+            text = "".join(_block(b, "text") or "" for b in content if _block(b, "type") == "text")
+            calls = [{"id": _block(b, "id"), "type": "function", "function": {
+                "name": _block(b, "name"), "arguments": json.dumps(_block(b, "input"))}}
+                for b in content if _block(b, "type") == "tool_use"]
+            msg: dict[str, Any] = {"role": "assistant", "content": text or None}
+            if calls:
+                msg["tool_calls"] = calls
+            out.append(msg)
+    return out
+
+
+def from_openai_response(response: Any) -> LLMTurn:
+    choice = response.choices[0]
+    message = choice.message
+    calls = []
+    for c in message.tool_calls or []:
+        try:
+            args = json.loads(c.function.arguments or "{}")
+        except json.JSONDecodeError:
+            args = {"_invalid_arguments": c.function.arguments}  # the tool call will fail cleanly
+        calls.append(ToolCall(c.id, c.function.name, args))
+    text = message.content or ""
+    content: list[Any] = [{"type": "text", "text": text}] if text else []
+    content += [{"type": "tool_use", "id": c.id, "name": c.name, "input": c.input} for c in calls]
+    stop = "tool_use" if calls else FINISH_REASONS.get(choice.finish_reason or "", "end_turn")
+    u = response.usage
+    details = getattr(u, "prompt_tokens_details", None) if u else None
+    cached = (getattr(details, "cached_tokens", 0) or 0) if details else 0
+    usage = Usage(input_tokens=(u.prompt_tokens - cached) if u else 0,
+                  output_tokens=u.completion_tokens if u else 0, cache_read_tokens=cached)
+    return LLMTurn(stop_reason=stop, text=text, tool_calls=calls, content=content, usage=usage,
+                   model=response.model or "")
+
+
+class OpenAICompatLLM:
+    """Any OpenAI-compatible chat API. Used with OpenRouter, which can route to Claude
+    ("anthropic/claude-opus-5.5") or to other providers' models for comparison."""
+
+    def __init__(self, api_key: str | None, model: str, base_url: str,
+                 effort: str = "medium", max_tokens: int = 16000) -> None:
+        from openai import OpenAI
+
+        self.client = OpenAI(api_key=api_key, base_url=base_url)
+        self.model = model
+        self.effort = effort
+        self.max_tokens = max_tokens
+
+    def complete(self, system: str, messages: list[dict], tools: list[dict]) -> LLMTurn:
+        response = self.client.chat.completions.create(
+            model=self.model,
+            max_completion_tokens=self.max_tokens,
+            messages=cast(Any, to_openai_messages(system, messages,
+                                                  cache=self.model.startswith("anthropic/"))),
+            tools=cast(Any, to_openai_tools(tools)),
+            extra_body={"reasoning": {"effort": self.effort}},  # OpenRouter's unified setting
+        )
+        return from_openai_response(response)
