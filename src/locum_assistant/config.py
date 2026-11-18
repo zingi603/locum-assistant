@@ -36,6 +36,7 @@ class Settings(BaseSettings):
     # API
     api_keys: str = ""  # comma-separated; empty means no auth (local development only)
     rate_limit_per_minute: int = 20
+    daily_question_limit: int = 200  # whole-service cap for the public demo
     log_json: bool = True
 
 

@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Locum Assistant</title>
+<style>
+  :root { --ink: #1d2433; --muted: #5b6475; --line: #dde2ea; --accent: #0b5cad; --bg: #f7f8fa; }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 16px/1.55 system-ui, -apple-system, "Segoe UI", sans-serif;
+         color: var(--ink); background: var(--bg); }
+  main { max-width: 760px; margin: 0 auto; padding: 32px 20px 64px; }
+  h1 { font-size: 1.6rem; margin: 0 0 4px; }
+  .sub { color: var(--muted); margin: 0 0 24px; }
+  form { display: flex; gap: 8px; }
+  textarea { flex: 1; font: inherit; padding: 10px 12px; border: 1px solid var(--line);
+             border-radius: 8px; resize: vertical; min-height: 52px; }
+  button { font: inherit; border: 0; border-radius: 8px; padding: 0 18px; cursor: pointer;
+           background: var(--accent); color: #fff; }
+  button:disabled { opacity: .5; cursor: default; }
+  .examples { margin: 10px 0 24px; display: flex; flex-wrap: wrap; gap: 6px; }
+  .examples button { background: #fff; color: var(--ink); border: 1px solid var(--line);
+                     padding: 6px 10px; font-size: .9rem; }
+  .card { background: #fff; border: 1px solid var(--line); border-radius: 10px;
+          padding: 16px 18px; margin-top: 16px; }
+  .steps { color: var(--muted); font-size: .9rem; margin: 0; padding-left: 18px; }
+  .answer p { margin: 0 0 10px; } .answer ul, .answer ol { margin: 0 0 10px; }
+  .sources { font-size: .9rem; padding-left: 18px; margin: 8px 0 0; }
+  .meta { color: var(--muted); font-size: .8rem; margin-top: 10px; }
+  footer { color: var(--muted); font-size: .85rem; margin-top: 32px; }
+  a { color: var(--accent); }
+</style>
+</head>
+<body>
+<main>
+  <h1>Locum Assistant</h1>
+  <p class="sub">Questions about pharmacy standards and law in Great Britain, answered from GPhC
+    guidance and legislation, with the source behind every claim.</p>
+
+  <form id="ask">
+    <textarea id="q" maxlength="2000" placeholder="e.g. Can the responsible pharmacist leave the pharmacy for lunch?" required></textarea>
+    <button id="go" type="submit">Ask</button>
+  </form>
+  <div class="examples" id="examples"></div>
+
+  <div id="out"></div>
+
+  <footer>
+    Information, not legal advice. Sources: GPhC standards and guidance, the Responsible
+    Pharmacist Regulations 2008 and the 2025 supervision Order.
+    <a href="https://github.com/zingi603/locum-assistant">How it works (GitHub)</a>
+  </footer>
+</main>
+<script>
+const EXAMPLES = [
+  "Can the RP leave the pharmacy for lunch? What do I need to do first?",
+  "Can a pharmacy technician supervise dispensing now?",
+  "What should I invoice for 9 hours at £45/hour with a 30-minute unpaid break?",
+  "Is 30 November 2026 a bank holiday in Scotland?",
+];
+const TOOL_LABELS = {
+  search_guidance: "Searching the guidance",
+  uk_bank_holidays: "Checking gov.uk bank holidays",
+  find_pharmacy: "Looking up the NHS pharmacy directory",
+  calculate_shift_pay: "Calculating pay",
+};
+const $ = (id) => document.getElementById(id);
+const esc = (s) => s.replace(/[&<>"]/g, (c) => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;"}[c]));
+
+// A small Markdown subset: paragraphs, bullet and numbered lists, **bold**.
+function render(md) {
+  const html = [];
+  let list = null;
+  for (const raw of md.split("\n")) {
+    const line = esc(raw.trim()).replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
+    const bullet = line.match(/^[-*] (.*)/), numbered = line.match(/^\d+\. (.*)/);
+    const kind = bullet ? "ul" : numbered ? "ol" : null;
+    if (list && kind !== list) { html.push(`</${list}>`); list = null; }
+    if (kind) {
+      if (!list) { html.push(`<${kind}>`); list = kind; }
+      html.push(`<li>${(bullet || numbered)[1]}</li>`);
+    } else if (line) {
+      html.push(`<p>${line}</p>`);
+    }
+  }
+  if (list) html.push(`</${list}>`);
+  return html.join("");
+}
+
+async function ask(question) {
+  const card = document.createElement("div");
+  card.className = "card";
+  card.innerHTML = `<strong>${esc(question)}</strong><ul class="steps"></ul><div class="answer"></div>`;
+  $("out").prepend(card);
+  const steps = card.querySelector(".steps"), answer = card.querySelector(".answer");
+  $("go").disabled = true;
+  try {
+    const res = await fetch("ask/stream", {
+      method: "POST", headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({question}),
+    });
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      answer.innerHTML = `<p>${esc(body.detail || "Something went wrong.")}</p>`;
+      return;
+    }
+    // Server-sent events over a POST response: read the stream and split on blank lines.
+    const reader = res.body.getReader(), decoder = new TextDecoder();
+    let buffer = "";
+    for (;;) {
+      const {value, done} = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, {stream: true});
+      let cut;
+      while ((cut = buffer.indexOf("\n\n")) >= 0) {
+        const block = buffer.slice(0, cut); buffer = buffer.slice(cut + 2);
+        const kind = (block.match(/^event: (.*)$/m) || [])[1];
+        const data = JSON.parse((block.match(/^data: (.*)$/m) || [, "{}"])[1]);
+        if (kind === "tool_call") {
+          const what = data.input.query ? `: “${esc(data.input.query)}”` : "";
+          steps.insertAdjacentHTML("beforeend", `<li>${TOOL_LABELS[data.name] || data.name}${what}</li>`);
+        } else if (kind === "answer") {
+          answer.innerHTML = render(data.answer) + (data.sources.length ? "<ol class='sources'>" +
+            data.sources.map((s) => `<li value="${s.n}"><a href="${esc(s.url)}" target="_blank" rel="noopener">${esc(s.citation)}</a></li>`).join("") +
+            "</ol>" : "");
+        } else if (kind === "done") {
+          answer.insertAdjacentHTML("beforeend", `<div class="meta">${(data.latency_ms / 1000).toFixed(1)} s · ${data.model || data.mode}</div>`);
+        } else if (kind === "error") {
+          answer.innerHTML = `<p>${esc(data.message)}</p>`;
+        }
+      }
+    }
+  } catch (e) {
+    answer.innerHTML = "<p>Couldn't reach the server.</p>";
+  } finally {
+    $("go").disabled = false;
+  }
+}
+
+for (const q of EXAMPLES) {
+  const b = document.createElement("button");
+  b.type = "button"; b.textContent = q;
+  b.onclick = () => { $("q").value = q; ask(q); };
+  $("examples").append(b);
+}
+$("ask").onsubmit = (e) => { e.preventDefault(); const q = $("q").value.trim(); if (q) ask(q); };
+// A link such as /?q=... asks straight away, so a worked example can be shared.
+const shared = new URLSearchParams(location.search).get("q");
+if (shared) { $("q").value = shared; ask(shared); }
+</script>
+</body>
+</html>

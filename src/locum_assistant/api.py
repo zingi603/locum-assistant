@@ -19,7 +19,7 @@ from dataclasses import asdict
 from typing import Any
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Request
-from fastapi.responses import PlainTextResponse, StreamingResponse
+from fastapi.responses import HTMLResponse, PlainTextResponse, StreamingResponse
 from prometheus_client import CONTENT_TYPE_LATEST, Counter, Histogram, generate_latest
 from pydantic import BaseModel, Field
 
@@ -74,6 +74,39 @@ class RateLimiter:
             return True
 
 
+class DailyCap:
+    """A ceiling on questions per day (UTC) for the public demo, so a shared link can't run up
+    the model bill. Per instance, like the rate limiter; the deploys run one instance."""
+
+    def __init__(self, limit: int) -> None:
+        self.limit = limit
+        self.day = ""
+        self.count = 0
+        self.lock = threading.Lock()
+
+    def allow(self) -> bool:
+        today = time.strftime("%Y-%m-%d", time.gmtime())
+        with self.lock:
+            if today != self.day:
+                self.day, self.count = today, 0
+            if self.count >= self.limit:
+                return False
+            self.count += 1
+            return True
+
+
+def client_id(request: Request, api_key: str | None) -> str:
+    """Behind Cloud Run or AWS the socket address is the load balancer, so use the first
+    X-Forwarded-For address. A client can fake that header, which is why the daily cap,
+    not this per-client limit, is what protects the bill."""
+    if api_key:
+        return f"key:{api_key[:8]}"
+    forwarded = request.headers.get("x-forwarded-for", "")
+    if forwarded:
+        return forwarded.split(",")[0].strip()
+    return request.client.host if request.client else "unknown"
+
+
 def build_agent(settings: Settings) -> tuple[Agent, Callable[[], bool]]:
     """Wire the real agent: Postgres store, local embeddings, the chosen model."""
     from locum_assistant.agent.llm import LLM, AnthropicLLM, ExtractiveLLM, OpenAICompatLLM
@@ -112,6 +145,7 @@ def create_app(settings: Settings | None = None, agent: Agent | None = None,
     settings = settings or get_settings()
     keys = {k.strip() for k in settings.api_keys.split(",") if k.strip()}
     limiter = RateLimiter(settings.rate_limit_per_minute)
+    daily = DailyCap(settings.daily_question_limit)
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
@@ -137,9 +171,11 @@ def create_app(settings: Settings | None = None, agent: Agent | None = None,
     def guard(request: Request, x_api_key: str | None = Header(default=None)) -> None:
         if keys and not any(secrets.compare_digest(x_api_key or "", k) for k in keys):
             raise HTTPException(401, "missing or wrong X-API-Key")
-        client = x_api_key or (request.client.host if request.client else "unknown")
-        if not limiter.allow(client):
-            raise HTTPException(429, "rate limit: try again in a minute")
+        if not limiter.allow(client_id(request, x_api_key)):
+            raise HTTPException(429, "Too many questions: try again in a minute.")
+        if not daily.allow():
+            raise HTTPException(429, "The demo has reached today's question limit. "
+                                     "Try again tomorrow.")
 
     def record(result: AgentResult, seconds: float) -> dict[str, Any]:
         REQUESTS.labels(result.stop).inc()
@@ -192,6 +228,12 @@ def create_app(settings: Settings | None = None, agent: Agent | None = None,
             await task
 
         return StreamingResponse(events(), media_type="text/event-stream")
+
+    @app.get("/", response_class=HTMLResponse, include_in_schema=False)
+    def home() -> str:
+        from importlib.resources import files
+
+        return files("locum_assistant").joinpath("static/index.html").read_text(encoding="utf-8")
 
     @app.get("/health")
     def health(request: Request) -> dict[str, Any]:

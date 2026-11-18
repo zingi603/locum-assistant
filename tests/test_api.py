@@ -61,3 +61,23 @@ def test_health_and_metrics() -> None:
                                                 "llm": "extractive"}
         client.post("/ask", json={"question": "q"})
         assert "ask_requests_total" in client.get("/metrics").text
+
+
+def test_daily_cap_stops_questions_for_the_day() -> None:
+    with app_with([text_turn("a"), text_turn("b")], daily_question_limit=2) as client:
+        codes = [client.post("/ask", json={"question": "q"}).status_code for _ in range(3)]
+    assert codes == [200, 200, 429]
+
+
+def test_rate_limit_uses_forwarded_client_address() -> None:
+    with app_with([text_turn("a"), text_turn("b")], rate_limit_per_minute=1) as client:
+        a = client.post("/ask", json={"question": "q"}, headers={"X-Forwarded-For": "1.1.1.1"})
+        b = client.post("/ask", json={"question": "q"}, headers={"X-Forwarded-For": "2.2.2.2"})
+        c = client.post("/ask", json={"question": "q"}, headers={"X-Forwarded-For": "1.1.1.1"})
+    assert (a.status_code, b.status_code, c.status_code) == (200, 200, 429)
+
+
+def test_demo_page_is_served() -> None:
+    with app_with([]) as client:
+        r = client.get("/")
+    assert r.status_code == 200 and "Locum Assistant" in r.text and "ask/stream" in r.text
